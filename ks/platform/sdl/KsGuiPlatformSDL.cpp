@@ -369,6 +369,11 @@ namespace ks
                 return m_window;
             }
 
+            void SetSDLGLContext(SDL_GLContext context)
+            {
+                m_context = context;
+            }
+
         private:
             SDL_Window* m_window;
             SDL_GLContext m_context;
@@ -617,7 +622,6 @@ namespace ks
                             // TODO call SDL_Quit?
                             keep_processing = false;
                             signal_quit.Emit();
-                            //this->Quit();
                             break;
                         }
                         case SDL_WINDOWEVENT: {
@@ -640,7 +644,6 @@ namespace ks
                                     break;
                                 }
                                 case SDL_WINDOWEVENT_CLOSE: {
-                                    LOG.Trace() << "SDL_WINDOW_CLOSE";
                                     window->signal_close.Emit();
                                 }
 
@@ -652,16 +655,29 @@ namespace ks
                             break;
                         }
                         case SDL_RENDER_DEVICE_RESET: {
-                            // an indication that the opengl context
-                            // has been destroyed and recreated; may
-                            // happen when android apps are backgrounded
-                            // or windows are resized/fullscreened
+                            // We only assume this occurs on Android where
+                            // the application will have a single window.
 
-                            // a recreated context means all buffers,
-                            // textures and other data associated with
-                            // the context have been destroyed and must
-                            // be recreated/reset
-                            LOG.Trace() << "SDL_RENDER_DEVICE_RESET";
+                            // Its not clear when in the Android app lifecycle
+                            // this will be called so the best we can do is
+                            // pause ASAP to stop rendering:
+                            signal_pause.Emit();
+
+                            // SDL should have created the new context and
+                            // set it current before this event is sent, so
+                            // we just update the sole window's context
+
+                            auto sdl_gl_context = SDL_GL_GetCurrentContext();
+                            if(sdl_gl_context == nullptr) {
+                                std::string const err_msg(SDL_GetError());
+                                throw WindowContextMakeCurrentError(
+                                            "SDL: Failed to get context: "
+                                            "after OpenGL context reset "+ err_msg);
+                            }
+
+                            m_list_windows.at(0)->SetSDLGLContext(
+                                        SDL_GL_GetCurrentContext());
+
                             signal_graphics_reset.Emit();
                             break;
                         }
