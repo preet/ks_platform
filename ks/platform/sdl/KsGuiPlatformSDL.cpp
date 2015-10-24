@@ -577,23 +577,16 @@ namespace ks
                         throw PlatformInitFailed("SDL: Failed to query displays: "+err_msg);
                     }
 
-                    // orientation
-                    // The orientation is just a guess based on the
-                    // current screen dimensions
-                    Screen::Orientation orientation =
-                            Screen::Orientation::Landscape;
-
-                    if(size_px_rect.h > size_px_rect.w) {
-                        orientation = Screen::Orientation::Portrait;
-                    }
-
+                    // rotation
+                    // We just assume a default rotation of 0 degrees
+                    // as there's no API to query in SDL yet
                     uint height_mm = (size_px_rect.h/hdpi)*2.54*10;
                     uint width_mm = (size_px_rect.w/hdpi)*2.54*10;
 
                     m_list_screens.push_back(
                                 make_shared<Screen>(
                                     std::string(name),
-                                    orientation,
+                                    Screen::Rotation::CW_0,
                                     std::pair<uint,uint>(size_px_rect.w,size_px_rect.h),
                                     std::pair<uint,uint>(height_mm,width_mm),
                                     ddpi));
