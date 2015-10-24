@@ -22,6 +22,106 @@
 #include <ks/gui/KsGuiPlatform.hpp>
 #include <ks/shared/KsCallbackTimer.hpp>
 
+
+#if defined(KS_ENV_ANDROID)
+
+#include <jni.h>
+
+namespace ks
+{
+    namespace gui
+    {
+        namespace {
+            Signal<Window::Size> g_signal_app_window_size_changed;
+            Signal<Screen::Rotation> g_signal_screen_rotation_changed;
+
+            std::string g_display_name;
+            uint g_display_width_px;
+            uint g_display_height_px;
+            uint g_display_xdpi;
+            uint g_display_ydpi;
+            Screen::Rotation g_display_rotation_cw;
+
+            //uint g_window_width_px = 0;
+            //uint g_window_height_px = 0;
+        }
+    }
+}
+
+extern "C" {
+
+JNIEXPORT void JNICALL
+Java_dev_ks_platform_sdl_KsActivity_jniOnInitDisplayInfo(
+        JNIEnv* env,
+        jobject thisObject,
+        jstring displayName,
+        jint displayWidthPx,
+        jint displayHeightPx,
+        jfloat displayXDPI,
+        jfloat displayYDPI,
+        jint displayRotationCW)
+{
+    (void)thisObject;
+
+    using namespace ks::gui;
+
+
+    g_display_width_px = displayWidthPx;
+    g_display_height_px = displayHeightPx;
+    g_display_xdpi = displayXDPI;
+    g_display_ydpi = displayYDPI;
+    g_display_rotation_cw =
+            ks::gui::Screen::ConvertRotation(
+                displayRotationCW);
+
+
+    char const * display_name_ptr =
+            env->GetStringUTFChars(displayName,nullptr);
+
+    if(display_name_ptr==nullptr) {
+        // java malloc error, java will throw
+        // an exception after this function returns
+        return;
+    }
+
+    g_display_name = std::string(display_name_ptr);
+    env->ReleaseStringUTFChars(displayName,display_name_ptr);
+
+    ks::LOG.Trace() << "DISPLAY";
+    ks::LOG.Trace() << "width " << g_display_width_px;
+    ks::LOG.Trace() << "height " << g_display_height_px;
+    ks::LOG.Trace() << "xdpi " << g_display_xdpi;
+    ks::LOG.Trace() << "ydpi " << g_display_ydpi;
+    ks::LOG.Trace() << "rotation " << displayRotationCW;
+}
+
+JNIEXPORT void JNICALL
+Java_dev_ks_platform_sdl_KsActivity_jniOnDisplayRotationChanged(
+        JNIEnv*,
+        jobject,
+        jint displayRotationCW)
+{
+    using namespace ks::gui;
+    auto rotation = Screen::ConvertRotation(displayRotationCW);
+    g_signal_screen_rotation_changed.Emit(rotation);
+}
+
+// Use SDL's functionality to get the window size
+//JNIEXPORT void JNICALL
+//Java_dev_ks_platform_sdl_KsActivity_jniOnWindowSizeChanged(
+//        JNIEnv*,
+//        jobject,
+//        jint windowWidthPx,
+//        jint windowHeightPx)
+//{
+//    ks::gui::Window::Size size(windowWidthPx,windowHeightPx);
+//    ks::gui::g_signal_app_window_size_changed.Emit(size);
+//}
+
+} // extern C
+#endif // KS_ENV_ANDROID
+
+
 namespace ks
 {
     namespace gui
@@ -478,7 +578,10 @@ namespace ks
 
             ~PlatformSDL()
             {
-
+#ifdef KS_ENV_ANDROID
+                g_signal_screen_rotation_changed.Disconnect(
+                            m_cid_display_rotation);
+#endif
             }
 
             void Run()
@@ -547,7 +650,28 @@ namespace ks
         private:
             void enumerateScreens()
             {
-                // Enumerate display screens
+#ifdef KS_ENV_ANDROID
+                // We assume jniOnInitDisplayInfo has been called
+                // before PlatformSDL is created
+
+                // Currently we only support the single in-built
+                // device screen for Android
+
+                m_list_screens.push_back(
+                            make_shared<Screen>(
+                                g_display_name,
+                                g_display_rotation_cw,
+                                g_display_width_px,
+                                g_display_height_px,
+                                g_display_xdpi,
+                                g_display_ydpi));
+
+                // Listen for Display rotation changes
+                m_cid_display_rotation =
+                        g_signal_screen_rotation_changed.Connect(
+                            this,&PlatformSDL::onDisplayRotationChanged);
+
+#else
                 int screen_count = SDL_GetNumVideoDisplays();
                 if(screen_count <= 0) {
                     std::string const err_msg(SDL_GetError());
@@ -580,17 +704,23 @@ namespace ks
                     // rotation
                     // We just assume a default rotation of 0 degrees
                     // as there's no API to query in SDL yet
-                    uint height_mm = (size_px_rect.h/hdpi)*2.54*10;
-                    uint width_mm = (size_px_rect.w/hdpi)*2.54*10;
 
                     m_list_screens.push_back(
                                 make_shared<Screen>(
                                     std::string(name),
                                     Screen::Rotation::CW_0,
-                                    std::pair<uint,uint>(size_px_rect.w,size_px_rect.h),
-                                    std::pair<uint,uint>(height_mm,width_mm),
-                                    ddpi));
+                                    size_px_rect.w,
+                                    size_px_rect.h,
+                                    hdpi,
+                                    vdpi));
                 }
+#endif
+            }
+
+            void onDisplayRotationChanged(Screen::Rotation rotation)
+            {
+                LOG.Trace() << "ROTATION CHANGED! " << static_cast<uint>(rotation);
+                m_list_screens[0]->rotation.Set(rotation);
             }
 
             void processEvents()
@@ -711,6 +841,9 @@ namespace ks
             //   a single type of context and surface will
             //   be used across all windows
             bool m_loaded_gl_funcs;
+
+
+            Id m_cid_display_rotation;
         };
 
         // ============================================================= //

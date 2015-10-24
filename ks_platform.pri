@@ -29,6 +29,8 @@ linux {
 
 android {
     # sdl
+    SOURCES += $${PATH_KS_PLATFORM}/sdl/SDL_android_main.c
+
     INCLUDEPATH += $${PATH_SDL_INCLUDE}
     DEFINES += KS_ENV_ANDROID_SDL
     DEFINES += _REENTRANT
