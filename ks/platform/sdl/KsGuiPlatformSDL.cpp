@@ -514,6 +514,9 @@ namespace ks
 
                     // May be called when the user suspends the app
                     // or the application is interrupted (ie. phone call)
+
+                    // NOTE: The application event loop is blocked after
+                    // this function returns!
                     platform->signal_pause.Emit();
                     return 0;
                 }
@@ -536,9 +539,18 @@ namespace ks
                     // iOS: didBecomeActive
                     // Android: onResume
 
-                    // Called when the application is resumed and active
-                    platform->signal_resume.Emit();
-                    return 0;
+                    // Called when the application is resumed and active.
+                    // The application event loop is currently blocked!
+
+                    // Anything that waits on the application event loop
+                    // here will deadlock (ie a blocking signal)
+
+                    // To be safe we handle this in the normal event queue
+                    // by just returning 1
+
+                    // We post signal_resume so that it doesn't deadlock
+                    // as it eventually leads to a blocking signal emit
+                    return 1;
                 }
                 default: {
                     // No special processing, add it to the event queue
@@ -740,21 +752,24 @@ namespace ks
                 {
                     switch(sdl_ev.type)
                     {
-                        case SDL_QUIT: {
+                        case SDL_QUIT:
+                        {
                             LOG.Trace() << "SDL_QUIT";
                             // TODO call SDL_Quit?
                             keep_processing = false;
                             signal_quit.Emit();
                             break;
                         }
-                        case SDL_WINDOWEVENT: {
+                        case SDL_WINDOWEVENT:
+                        {
                             // Get the window this event is from
                             auto sdl_win_id = sdl_ev.window.windowID;
                             auto window = *getWindowFromSDLId(sdl_win_id);
 
                             switch(sdl_ev.window.event)
                             {
-                                case SDL_WINDOWEVENT_RESIZED: {
+                                case SDL_WINDOWEVENT_RESIZED:
+                                {
 
                                     // TODO: This might indicate that the
                                     // orientation of the display has changed;
@@ -766,19 +781,31 @@ namespace ks
                                                     sdl_ev.window.data2));
                                     break;
                                 }
-                                case SDL_WINDOWEVENT_CLOSE: {
+                                case SDL_WINDOWEVENT_CLOSE:
+                                {
                                     window->signal_close.Emit();
                                     break;
                                 }
 
-                                default: {
+                                default:
+                                {
                                     break;
                                 }
                             }
 
                             break;
                         }
-                        case SDL_RENDER_DEVICE_RESET: {
+                        case SDL_APP_DIDENTERFOREGROUND:
+                        {
+                            // Corresponds to:
+                            // iOS: didBecomeActive
+                            // Android: onResume
+
+                            signal_resume.Emit();
+                            break;
+                        }
+                        case SDL_RENDER_DEVICE_RESET:
+                        {
                             // We only assume this occurs on Android where
                             // the application will have a single window.
 
@@ -805,12 +832,40 @@ namespace ks
                             signal_graphics_reset.Emit();
                             break;
                         }
-                        default: {
+                        case SDL_KEYDOWN:
+                        {
+                            switch(sdl_ev.key.keysym.sym)
+                            {
+                                case SDLK_p:
+                                {
+                                    signal_pause.Emit();
+                                    break;
+                                }
+                                case SDLK_r:
+                                {
+                                    signal_resume.Emit();
+                                    break;
+                                }
+                                case SDLK_q:
+                                {
+                                    signal_quit.Emit();
+                                    break;
+                                }
+                                default: {
+                                    break;
+                                }
+                            }
+
+                            break;
+                        }
+                        default:
+                        {
                             break;
                         }
                     }
 
-                    if(!keep_processing) {
+                    if(!keep_processing)
+                    {
                         break;
                     }
                 }
