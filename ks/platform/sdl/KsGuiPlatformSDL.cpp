@@ -768,6 +768,7 @@ namespace ks
                                 }
                                 case SDL_WINDOWEVENT_CLOSE: {
                                     window->signal_close.Emit();
+                                    break;
                                 }
 
                                 default: {
