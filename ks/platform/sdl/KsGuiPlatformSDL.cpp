@@ -50,6 +50,8 @@ namespace ks
 
 extern "C" {
 
+int Android_JNI_SetupThread();
+
 JNIEXPORT void JNICALL
 Java_dev_ks_platform_sdl_KsActivity_jniOnInitDisplayInfo(
         JNIEnv* env,
@@ -234,6 +236,8 @@ namespace ks
                                         "glad: Could not load OpenGL functions");
                         }
                     }
+                #else
+                    (void)load_gl_fns;
                 #endif
 
                 // set the vsync interval
@@ -624,9 +628,28 @@ namespace ks
             }
 
             shared_ptr<IPlatformWindow>
-            CreateWindow(Window::Attributes& win_attrs,
+            CreateWindow(shared_ptr<EventLoop>& window_evl,
+                         Window::Attributes& win_attrs,
                          Window::Properties& win_props)
             {
+#ifdef KS_ENV_ANDROID
+                // We need to ensure that any thread that may call
+                // into JNI is setup properly. As far as we know, any
+                // SDL function may call a JNI function in the SDLActivity
+                // so every thread that calls any SDL function should
+                // first call Android_JNI_SetupThread()
+
+                // We need to call this *from* the thread itself so
+                // we post a task to the Window's event loop
+                window_evl->PostTask(
+                            make_shared<Task>(
+                                [](){
+                                    Android_JNI_SetupThread();
+                                }));
+#else
+                (void)window_evl;
+#endif
+
                 // Request that GL functions be loaded if required
                 bool load_gl_fns = !m_loaded_gl_funcs;
 
@@ -731,7 +754,6 @@ namespace ks
 
             void onDisplayRotationChanged(Screen::Rotation rotation)
             {
-                LOG.Trace() << "ROTATION CHANGED! " << static_cast<uint>(rotation);
                 m_list_screens[0]->rotation.Set(rotation);
             }
 
