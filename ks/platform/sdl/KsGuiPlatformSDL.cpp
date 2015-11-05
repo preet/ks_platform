@@ -828,13 +828,18 @@ namespace ks
                         }
                         case SDL_RENDER_DEVICE_RESET:
                         {
+                            LOG.Trace() << "SDL_RENDER_DEVICE_RESET";
+
                             // We only assume this occurs on Android where
                             // the application will have a single window.
 
                             // Its not clear when in the Android app lifecycle
                             // this will be called so the best we can do is
-                            // pause ASAP to stop rendering:
-                            signal_pause.Emit();
+                            // pause ASAP to stop rendering
+
+                            // EDIT: I think a context reset on Android can
+                            // only occur after pause is called TODO confirm
+                            // signal_pause.Emit();
 
                             // SDL should have created the new context and
                             // set it current before this event is sent, so
@@ -871,6 +876,11 @@ namespace ks
                                 case SDLK_q:
                                 {
                                     signal_quit.Emit();
+                                    break;
+                                }
+                                case SDLK_g:
+                                {
+                                    signal_graphics_reset.Emit();
                                     break;
                                 }
                                 default: {
@@ -920,8 +930,9 @@ namespace ks
             //   be used across all windows
             bool m_loaded_gl_funcs;
 
-
+#ifdef KS_ENV_ANDROID
             Id m_cid_display_rotation;
+#endif
         };
 
         // ============================================================= //
