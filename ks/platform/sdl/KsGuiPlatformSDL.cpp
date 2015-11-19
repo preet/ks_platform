@@ -22,6 +22,7 @@
 #include <ks/gui/KsGuiPlatform.hpp>
 #include <ks/shared/KsCallbackTimer.hpp>
 
+#include <ks/platform/sdl/KsGuiConvertSDLInputs.hpp>
 
 #if defined(KS_ENV_ANDROID)
 
@@ -766,8 +767,6 @@ namespace ks
                     list_sdl_events.push_back(sdl_event);
                 }
 
-                // TODO: merge redundant sdl events
-
                 // Process SDL events
                 bool keep_processing = true;
                 for(auto &sdl_ev : list_sdl_events)
@@ -861,35 +860,47 @@ namespace ks
                         }
                         case SDL_KEYDOWN:
                         {
-                            switch(sdl_ev.key.keysym.sym)
-                            {
-                                case SDLK_p:
-                                {
-                                    signal_pause.Emit();
-                                    break;
-                                }
-                                case SDLK_r:
-                                {
-                                    signal_resume.Emit();
-                                    break;
-                                }
-                                case SDLK_q:
-                                {
-                                    signal_quit.Emit();
-                                    break;
-                                }
-                                case SDLK_g:
-                                {
-                                    signal_graphics_reset.Emit();
-                                    break;
-                                }
-                                default: {
-                                    break;
-                                }
-                            }
-
+                            signal_keyboard_input.Emit(
+                                        ConvertSDLKeyEvent(sdl_ev.key));
                             break;
                         }
+                        case SDL_KEYUP:
+                        {
+                            signal_keyboard_input.Emit(
+                                        ConvertSDLKeyEvent(sdl_ev.key));
+                            break;
+                        }
+                        case SDL_TEXTINPUT:
+                        {
+                            std::string utf8text(sdl_ev.text.text);
+                            signal_utf8_input.Emit(utf8text);
+                            break;
+                        }
+                        case SDL_MOUSEBUTTONDOWN:
+                        {
+                            signal_mouse_input.Emit(
+                                        ConverSDLMouseButtonEvent(sdl_ev.button));
+                            break;
+                        }
+                        case SDL_MOUSEBUTTONUP:
+                        {
+                            signal_mouse_input.Emit(
+                                        ConverSDLMouseButtonEvent(sdl_ev.button));
+                            break;
+                        }
+                        case SDL_MOUSEMOTION:
+                        {
+                            signal_mouse_input.Emit(
+                                        ConvertSDLMouseMotionEvent(sdl_ev.motion));
+                            break;
+                        }
+                        case SDL_MOUSEWHEEL:
+                        {
+                            signal_scroll_input.Emit(
+                                        ConvertSDLScrollEvent(sdl_ev.wheel));
+                            break;
+                        }
+
                         default:
                         {
                             break;
