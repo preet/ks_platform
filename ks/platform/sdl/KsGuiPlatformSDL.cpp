@@ -577,8 +577,10 @@ namespace ks
                 m_evproc_timer =
                         make_object<CallbackTimer>(
                             m_event_loop,
-                            std::chrono::milliseconds(17),
+                            std::chrono::milliseconds(10),
                             [this](){ this->processEvents(); });
+
+                LOG.Info() << "PlatformSDL: Set event polling interval to 10ms";
 
                 // Init sdl
                 if(SDL_Init(SDL_INIT_VIDEO) < 0) {
