@@ -1,5 +1,5 @@
 /*
-   Copyright (C) 2015 Preet Desai (preet.desai@gmail.com)
+   Copyright (C) 2015-2016 Preet Desai (preet.desai@gmail.com)
 
    Licensed under the Apache License, Version 2.0 (the "License");
    you may not use this file except in compliance with the License.
@@ -574,14 +574,6 @@ namespace ks
                 m_event_loop(event_loop),
                 m_loaded_gl_funcs(false)
             {
-                m_evproc_timer =
-                        make_object<CallbackTimer>(
-                            m_event_loop,
-                            Milliseconds(10),
-                            [this](){ this->processEvents(); });
-
-                LOG.Info() << "PlatformSDL: Set event polling interval to 10ms";
-
                 // Init sdl
                 if(SDL_Init(SDL_INIT_VIDEO) < 0) {
                     std::string error_msg(SDL_GetError());
@@ -603,10 +595,14 @@ namespace ks
 #endif
             }
 
+            void ProcessEvents()
+            {
+                this->processEvents();
+            }
+
             void Run()
             {
                 LOG.Trace() << "PlatformSDL::Run";
-                m_evproc_timer->Start();
                 m_event_loop->Run();
                 LOG.Trace() << "PlatformSDL::Run returned";
             }
@@ -616,7 +612,6 @@ namespace ks
                 LOG.Trace() << "PlatformSDL::Quit";
 
                 // Immediately stop all system event processing
-                m_evproc_timer->Stop();
                 m_event_loop->PostStopEvent();
             }
 
@@ -770,6 +765,7 @@ namespace ks
                 }
 
                 // Process SDL events
+                uint const event_count = list_sdl_events.size();
                 bool keep_processing = true;
                 for(auto &sdl_ev : list_sdl_events)
                 {
@@ -787,7 +783,21 @@ namespace ks
                         {
                             // Get the window this event is from
                             auto sdl_win_id = sdl_ev.window.windowID;
-                            auto window = *getWindowFromSDLId(sdl_win_id);
+
+                            auto window_it = getWindowFromSDLId(sdl_win_id);
+                            if(window_it == m_list_windows.end())
+                            {
+                                // Sometimes we get an event for a window after
+                                // its been destroyed which we ignore
+
+                                // TODO Are SDL windowIds reused? Is it possible
+                                // to get latent window events for closed windows
+                                // and mistake them for newly opened ones?
+
+                                break;
+                            }
+
+                            auto window = *window_it;
 
                             switch(sdl_ev.window.event)
                             {
@@ -914,6 +924,8 @@ namespace ks
                         break;
                     }
                 }
+
+                signal_processed_events.Emit(bool(event_count > 0));
             }
 
             std::vector<shared_ptr<PlatformWindowSDL>>::iterator
@@ -926,11 +938,11 @@ namespace ks
                             [sdl_win_id](shared_ptr<PlatformWindowSDL> const &window) {
                                 return (window->GetSDLWindow() == SDL_GetWindowFromID(sdl_win_id));
                             });
+
                 return it;
             }
 
             shared_ptr<EventLoop> m_event_loop;
-            shared_ptr<CallbackTimer> m_evproc_timer;
             std::vector<shared_ptr<gui::Screen>> m_list_screens;
             std::vector<shared_ptr<PlatformWindowSDL>> m_list_windows;
 
