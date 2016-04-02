@@ -757,6 +757,9 @@ namespace ks
 
             void processEvents()
             {
+                auto const current_timepoint =
+                        std::chrono::high_resolution_clock::now();
+
                 // Get all available sdl events
                 SDL_Event sdl_event;
                 std::vector<SDL_Event> list_sdl_events;
@@ -891,25 +894,34 @@ namespace ks
                         case SDL_MOUSEBUTTONDOWN:
                         {
                             signal_mouse_input.Emit(
-                                        ConverSDLMouseButtonEvent(sdl_ev.button));
+                                        ConverSDLMouseButtonEvent(
+                                            sdl_ev.button,
+                                            current_timepoint));
                             break;
                         }
                         case SDL_MOUSEBUTTONUP:
                         {
                             signal_mouse_input.Emit(
-                                        ConverSDLMouseButtonEvent(sdl_ev.button));
+                                        ConverSDLMouseButtonEvent(
+                                            sdl_ev.button,
+                                            current_timepoint));
                             break;
                         }
                         case SDL_MOUSEMOTION:
                         {
-                            signal_mouse_input.Emit(
-                                        ConvertSDLMouseMotionEvent(sdl_ev.motion));
+                            auto mouse_ev =
+                                    ConvertSDLMouseMotionEvent(
+                                        sdl_ev.motion,
+                                        current_timepoint);
+
+                            signal_mouse_input.Emit(mouse_ev);
                             break;
                         }
                         case SDL_MOUSEWHEEL:
                         {
                             signal_scroll_input.Emit(
-                                        ConvertSDLScrollEvent(sdl_ev.wheel));
+                                        ConvertSDLScrollEvent(
+                                            sdl_ev.wheel));
                             break;
                         }
 

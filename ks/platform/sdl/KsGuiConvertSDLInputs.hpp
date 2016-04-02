@@ -21,6 +21,7 @@
 #include <unordered_map>
 #include <SDL2/SDL.h>
 #include <ks/gui/KsGuiInput.hpp>
+#include <ks/KsLog.hpp>
 
 namespace ks
 {
@@ -211,9 +212,11 @@ namespace ks
             }
         }
 
-        MouseEvent ConverSDLMouseButtonEvent(SDL_MouseButtonEvent const &sdl_event)
+        MouseEvent ConverSDLMouseButtonEvent(SDL_MouseButtonEvent const &sdl_event,
+                                             TimePoint const &timepoint)
         {
             MouseEvent ks_event;
+            ks_event.timestamp = timepoint;
 
             // Action
             ks_event.action =
@@ -242,9 +245,11 @@ namespace ks
             return ks_event;
         }
 
-        MouseEvent ConvertSDLMouseMotionEvent(SDL_MouseMotionEvent const &sdl_event)
+        MouseEvent ConvertSDLMouseMotionEvent(SDL_MouseMotionEvent const &sdl_event,
+                                              TimePoint const &timepoint)
         {
             MouseEvent ks_event;
+            ks_event.timestamp = timepoint;
 
             // Action
             ks_event.action = MouseEvent::Action::None;
