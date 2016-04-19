@@ -487,6 +487,12 @@ namespace ks
         // ============================================================= //
         // ============================================================= //
 
+        namespace
+        {
+            // We need to access this for handleAppPriorityEvents
+            shared_ptr<EventLoop> g_app_event_loop;
+        }
+
         // returning 1 adds the event to SDL's event queue
         // returning 0 drops the event so it will not be
         // processed again in ie. Platform::Impl::processEvents
@@ -551,10 +557,27 @@ namespace ks
                     // here will deadlock (ie a blocking signal)
 
                     // To be safe we handle this in the normal event queue
-                    // by just returning 1
+                    // by just returning 1, but we still need to resume
+                    // even processing.
 
-                    // We post signal_resume so that it doesn't deadlock
-                    // as it eventually leads to a blocking signal emit
+                    if(g_app_event_loop)
+                    {
+                        // To resume the application, we need to call ProcessEvents
+                        // but for the above reasons, we can't call it directly.
+
+                        // So we post the resume event. This isn't a task because
+                        // that would be executed immediately since we might be in
+                        // the same thread as the event loop
+                        g_app_event_loop->PostEvent(
+                                    make_unique<SlotEvent>(
+                                        [platform](){
+                                            // TODO
+                                            // Is it ever possible that platform is
+                                            // destroyed before this function is called?
+                                            platform->ProcessEvents();
+                                        }));
+                    }
+
                     return 1;
                 }
                 default: {
@@ -574,6 +597,8 @@ namespace ks
                 m_event_loop(event_loop),
                 m_loaded_gl_funcs(false)
             {
+                g_app_event_loop = event_loop;
+
                 // Init sdl
                 if(SDL_Init(SDL_INIT_VIDEO) < 0) {
                     std::string error_msg(SDL_GetError());
@@ -593,6 +618,11 @@ namespace ks
                 g_signal_screen_rotation_changed.Disconnect(
                             m_cid_display_rotation);
 #endif
+            }
+
+            shared_ptr<EventLoop> GetEventLoop()
+            {
+                return m_event_loop;
             }
 
             void ProcessEvents()
@@ -836,7 +866,6 @@ namespace ks
                             // Corresponds to:
                             // iOS: didBecomeActive
                             // Android: onResume
-
                             signal_resume.Emit();
                             break;
                         }
@@ -875,8 +904,25 @@ namespace ks
                         }
                         case SDL_KEYDOWN:
                         {
-                            signal_keyboard_input.Emit(
-                                        ConvertSDLKeyEvent(sdl_ev.key));
+                            auto key_event = ConvertSDLKeyEvent(sdl_ev.key);
+
+                            // Debug
+                            if((key_event.mods & KeyEvent::MOD_CTRL) == KeyEvent::MOD_CTRL)
+                            {
+                                if(key_event.key == KeyEvent::Key::KEY_P)
+                                {
+                                    // Pause
+                                    signal_pause.Emit();
+
+                                }
+                                else if(key_event.key == KeyEvent::Key::KEY_R)
+                                {
+                                    // Resume
+                                    signal_resume.Emit();
+                                }
+                            }
+
+                            signal_keyboard_input.Emit(key_event);
                             break;
                         }
                         case SDL_KEYUP:
