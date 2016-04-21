@@ -605,6 +605,13 @@ namespace ks
                     throw PlatformInitFailed("Unable to initialize SDL: "+error_msg);
                 }
 
+#ifdef KS_ENV_ANDROID
+                if(!SDL_SetHint(SDL_HINT_ANDROID_SEPARATE_MOUSE_AND_TOUCH,"1")) {
+                    std::string error_msg(SDL_GetError());
+                    throw PlatformInitFailed("SDL: Could not set mouse/touch hint: "+error_msg);
+                }
+#endif
+
                 // Enumerate display screens
                 enumerateScreens();
 
@@ -955,12 +962,55 @@ namespace ks
                         }
                         case SDL_MOUSEMOTION:
                         {
-                            auto mouse_ev =
-                                    ConvertSDLMouseMotionEvent(
-                                        sdl_ev.motion,
-                                        current_timepoint);
+                            signal_mouse_input.Emit(
+                                        ConvertSDLMouseMotionEvent(
+                                            sdl_ev.motion,
+                                            current_timepoint));
+                            break;
+                        }
+                        case SDL_FINGERDOWN:
+                        {
+                            if(!m_list_windows.empty())
+                            {
+                                // TODO multiple window support
+                                sint w=0;
+                                sint h=0;
+                                SDL_GetWindowSize(m_list_windows[0]->GetSDLWindow(),&w,&h);
 
-                            signal_mouse_input.Emit(mouse_ev);
+                                signal_touch_input.Emit(
+                                            ConvertSDLTouchFingerEvent(
+                                                sdl_ev.tfinger,current_timepoint,w,h));
+                            }
+                            break;
+                        }
+                        case SDL_FINGERUP:
+                        {
+                            if(!m_list_windows.empty())
+                            {
+                                // TODO multiple window support
+                                sint w=0;
+                                sint h=0;
+                                SDL_GetWindowSize(m_list_windows[0]->GetSDLWindow(),&w,&h);
+
+                                signal_touch_input.Emit(
+                                            ConvertSDLTouchFingerEvent(
+                                                sdl_ev.tfinger,current_timepoint,w,h));
+                            }
+                            break;
+                        }
+                        case SDL_FINGERMOTION:
+                        {
+                            if(!m_list_windows.empty())
+                            {
+                                // TODO multiple window support
+                                sint w=0;
+                                sint h=0;
+                                SDL_GetWindowSize(m_list_windows[0]->GetSDLWindow(),&w,&h);
+
+                                signal_touch_input.Emit(
+                                            ConvertSDLTouchFingerEvent(
+                                                sdl_ev.tfinger,current_timepoint,w,h));
+                            }
                             break;
                         }
                         case SDL_MOUSEWHEEL:

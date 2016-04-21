@@ -155,7 +155,8 @@ namespace ks
                 {SDLK_MENU, KeyEvent::Key::KEY_MENU}
             };
 
-            KeyEvent ConvertSDLKeyEvent(SDL_KeyboardEvent const &sdl_event)
+            KeyEvent ConvertSDLKeyEvent(
+                    SDL_KeyboardEvent const &sdl_event)
             {
                 KeyEvent ks_event;
 
@@ -212,8 +213,39 @@ namespace ks
             }
         }
 
-        MouseEvent ConverSDLMouseButtonEvent(SDL_MouseButtonEvent const &sdl_event,
-                                             TimePoint const &timepoint)
+        TouchEvent ConvertSDLTouchFingerEvent(
+                SDL_TouchFingerEvent const &sdl_event,
+                TimePoint const &timepoint,
+                float active_win_width,
+                float active_win_height)
+        {
+            TouchEvent ks_event;
+            ks_event.timestamp = timepoint;
+
+            // Action
+            if(sdl_event.type == SDL_FINGERMOTION)
+            {
+                ks_event.action = TouchEvent::Action::None;
+            }
+            else if(sdl_event.type == SDL_FINGERDOWN)
+            {
+                ks_event.action = TouchEvent::Action::Press;
+            }
+            else if(sdl_event.type == SDL_FINGERUP)
+            {
+                ks_event.action = TouchEvent::Action::Release;
+            }
+
+            ks_event.index = sdl_event.fingerId;
+            ks_event.x = sdl_event.x*active_win_width;
+            ks_event.y = sdl_event.y*active_win_height;
+
+            return ks_event;
+        }
+
+        MouseEvent ConverSDLMouseButtonEvent(
+                SDL_MouseButtonEvent const &sdl_event,
+                TimePoint const &timepoint)
         {
             MouseEvent ks_event;
             ks_event.timestamp = timepoint;
@@ -245,8 +277,9 @@ namespace ks
             return ks_event;
         }
 
-        MouseEvent ConvertSDLMouseMotionEvent(SDL_MouseMotionEvent const &sdl_event,
-                                              TimePoint const &timepoint)
+        MouseEvent ConvertSDLMouseMotionEvent(
+                SDL_MouseMotionEvent const &sdl_event,
+                TimePoint const &timepoint)
         {
             MouseEvent ks_event;
             ks_event.timestamp = timepoint;
@@ -279,7 +312,8 @@ namespace ks
             return ks_event;
         }
 
-        ScrollEvent ConvertSDLScrollEvent(SDL_MouseWheelEvent const &sdl_event)
+        ScrollEvent ConvertSDLScrollEvent(
+                SDL_MouseWheelEvent const &sdl_event)
         {
             ScrollEvent ks_event;
 
