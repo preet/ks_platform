@@ -292,11 +292,11 @@ namespace ks
             {
                 ks_event.button = MouseEvent::Button::Left;
             }
-            else if(sdl_event.state == SDL_BUTTON_RMASK)
+            else if(sdl_event.state & SDL_BUTTON_RMASK)
             {
                 ks_event.button = MouseEvent::Button::Right;
             }
-            else if(sdl_event.state == SDL_BUTTON_MMASK)
+            else if(sdl_event.state & SDL_BUTTON_MMASK)
             {
                 ks_event.button = MouseEvent::Button::Middle;
             }
