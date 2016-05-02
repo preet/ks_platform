@@ -496,102 +496,15 @@ namespace ks
         // returning 1 adds the event to SDL's event queue
         // returning 0 drops the event so it will not be
         // processed again in ie. Platform::Impl::processEvents
-        static int handlePriorityAppEvents(void* userdata, SDL_Event* event)
-        {
-            IPlatform* platform = static_cast<IPlatform*>(userdata);
-
-            switch (event->type)
-            {
-                case SDL_APP_TERMINATING: {
-                    // Premature termination by OS
-                    // TODO: Should we have a separate signal for this?
-                    platform->Quit();
-                    return 0;
-                }
-                case SDL_APP_LOWMEMORY: {
-                    // Corresponds to:
-                    // iOS: didReceiveMemoryWarning
-                    // Android: onLowMemory
-
-                    // Low memory warning; The OS is requesting this
-                    // application try to free up some memory
-                    platform->signal_low_memory.Emit();
-                    return 0;
-                }
-                case SDL_APP_WILLENTERBACKGROUND: {
-                    // Corresponds to:
-                    // iOS: willResignActive
-                    // Android: onPause
-
-                    // May be called when the user suspends the app
-                    // or the application is interrupted (ie. phone call)
-
-                    // NOTE: The application event loop is blocked after
-                    // this function returns!
-                    platform->signal_pause.Emit();
-                    return 0;
-                }
-                case SDL_APP_DIDENTERBACKGROUND: {
-                    // Corresponds to:
-                    // iOS: didEnterBackground
-
-                    // We don't do anything here
-                    return 0;
-                }
-                case SDL_APP_WILLENTERFOREGROUND: {
-                    // Corresponds to:
-                    // iOS: willEnterForeground
-
-                    // We don't do anything here
-                    return 0;
-                }
-                case SDL_APP_DIDENTERFOREGROUND: {
-                    // Corresponds to:
-                    // iOS: didBecomeActive
-                    // Android: onResume
-
-                    // Called when the application is resumed and active.
-                    // The application event loop is currently blocked!
-
-                    // Anything that waits on the application event loop
-                    // here will deadlock (ie a blocking signal)
-
-                    // To be safe we handle this in the normal event queue
-                    // by just returning 1, but we still need to resume
-                    // even processing.
-
-                    if(g_app_event_loop)
-                    {
-                        // To resume the application, we need to call ProcessEvents
-                        // but for the above reasons, we can't call it directly.
-
-                        // So we post the resume event. This isn't a task because
-                        // that would be executed immediately since we might be in
-                        // the same thread as the event loop
-                        g_app_event_loop->PostEvent(
-                                    make_unique<SlotEvent>(
-                                        [platform](){
-                                            // TODO
-                                            // Is it ever possible that platform is
-                                            // destroyed before this function is called?
-                                            platform->ProcessEvents();
-                                        }));
-                    }
-
-                    return 1;
-                }
-                default: {
-                    // No special processing, add it to the event queue
-                    return 1;
-                }
-            }
-        }
+        static int handlePriorityAppEvents(void* userdata, SDL_Event* event);
 
         // ============================================================= //
         // ============================================================= //
 
         class PlatformSDL : public IPlatform
         {
+            friend int handlePriorityAppEvents(void *userdata, SDL_Event *event);
+
         public:
             PlatformSDL(shared_ptr<EventLoop> event_loop) :
                 m_event_loop(event_loop),
@@ -794,8 +707,10 @@ namespace ks
 
             void processEvents()
             {
-                auto const current_timepoint =
+                auto const ks_ev_proc_time =
                         std::chrono::high_resolution_clock::now();
+
+                Uint32 const sdl_ev_proc_time = SDL_GetTicks();
 
                 // Get all available sdl events
                 SDL_Event sdl_event;
@@ -949,7 +864,8 @@ namespace ks
                             signal_mouse_input.Emit(
                                         ConverSDLMouseButtonEvent(
                                             sdl_ev.button,
-                                            current_timepoint));
+                                            sdl_ev_proc_time,
+                                            ks_ev_proc_time));
                             break;
                         }
                         case SDL_MOUSEBUTTONUP:
@@ -957,7 +873,8 @@ namespace ks
                             signal_mouse_input.Emit(
                                         ConverSDLMouseButtonEvent(
                                             sdl_ev.button,
-                                            current_timepoint));
+                                            sdl_ev_proc_time,
+                                            ks_ev_proc_time));
                             break;
                         }
                         case SDL_MOUSEMOTION:
@@ -965,7 +882,8 @@ namespace ks
                             signal_mouse_input.Emit(
                                         ConvertSDLMouseMotionEvent(
                                             sdl_ev.motion,
-                                            current_timepoint));
+                                            sdl_ev_proc_time,
+                                            ks_ev_proc_time));
                             break;
                         }
                         case SDL_FINGERDOWN:
@@ -977,9 +895,14 @@ namespace ks
                                 sint h=0;
                                 SDL_GetWindowSize(m_list_windows[0]->GetSDLWindow(),&w,&h);
 
-                                signal_touch_input.Emit(
-                                            ConvertSDLTouchFingerEvent(
-                                                sdl_ev.tfinger,current_timepoint,w,h));
+                                auto e =
+                                        ConvertSDLTouchFingerEvent(
+                                            sdl_ev.tfinger,
+                                            sdl_ev_proc_time,
+                                            ks_ev_proc_time,
+                                            w,h);
+
+                                signal_touch_input.Emit(e);
                             }
                             break;
                         }
@@ -992,9 +915,14 @@ namespace ks
                                 sint h=0;
                                 SDL_GetWindowSize(m_list_windows[0]->GetSDLWindow(),&w,&h);
 
-                                signal_touch_input.Emit(
-                                            ConvertSDLTouchFingerEvent(
-                                                sdl_ev.tfinger,current_timepoint,w,h));
+                                auto e =
+                                        ConvertSDLTouchFingerEvent(
+                                            sdl_ev.tfinger,
+                                            sdl_ev_proc_time,
+                                            ks_ev_proc_time,
+                                            w,h);
+
+                                signal_touch_input.Emit(e);
                             }
                             break;
                         }
@@ -1007,9 +935,14 @@ namespace ks
                                 sint h=0;
                                 SDL_GetWindowSize(m_list_windows[0]->GetSDLWindow(),&w,&h);
 
-                                signal_touch_input.Emit(
-                                            ConvertSDLTouchFingerEvent(
-                                                sdl_ev.tfinger,current_timepoint,w,h));
+                                auto e =
+                                        ConvertSDLTouchFingerEvent(
+                                            sdl_ev.tfinger,
+                                            sdl_ev_proc_time,
+                                            ks_ev_proc_time,
+                                            w,h);
+
+                                signal_touch_input.Emit(e);
                             }
                             break;
                         }
@@ -1033,6 +966,7 @@ namespace ks
                     }
                 }
 
+                m_frame++;
                 signal_processed_events.Emit(bool(event_count > 0));
             }
 
@@ -1066,7 +1000,94 @@ namespace ks
 #ifdef KS_ENV_ANDROID
             Id m_cid_display_rotation;
 #endif
+
+            u64 m_frame{0};
         };
+
+        // ============================================================= //
+        // ============================================================= //
+
+        int handlePriorityAppEvents(void* userdata, SDL_Event* event)
+        {
+            PlatformSDL* platform = static_cast<PlatformSDL*>(userdata);
+
+            switch (event->type)
+            {
+                case SDL_APP_TERMINATING: {
+                    // Premature termination by OS
+                    // TODO: Should we have a separate signal for this?
+                    LOG.Trace() << "SDL_APP_TERMINATING";
+                    platform->Quit();
+                    return 0;
+                }
+                case SDL_APP_LOWMEMORY: {
+                    // Corresponds to:
+                    // iOS: didReceiveMemoryWarning
+                    // Android: onLowMemory
+
+                    // Low memory warning; The OS is requesting this
+                    // application try to free up some memory
+                    platform->signal_low_memory.Emit();
+                    return 0;
+                }
+                case SDL_APP_WILLENTERBACKGROUND: {
+                    // Corresponds to:
+                    // iOS: willResignActive
+                    // Android: onPause
+
+                    // May be called when the user suspends the app
+                    // or the application is interrupted (ie. phone call)
+                    platform->signal_pause.Emit();
+
+//                    #ifdef KS_ENV_ANDROID
+//                    // On Android, restore the originally bound thread
+//                    // for the OpenGL context so that if the application
+//                    // is killed after pause is called, things are close
+//                    // to their initial state
+
+//                    // Note: Its assumed that the window and all rendering
+//                    // is blocked at this point
+
+//                    // We post a task because this function may not be
+//                    // called from ks::Application's event loop thread
+//                    auto task = make_shared<Task>(
+//                                [&](){
+//                                    auto& win = platform->m_list_windows.front();
+//                                    win->MakeContextCurrent();
+//                                });
+//                    auto event_loop = platform->GetEventLoop();
+//                    event_loop->PostTask(task);
+//                    task->Wait();
+//                    #endif
+
+                    return 0;
+                }
+                case SDL_APP_DIDENTERBACKGROUND: {
+                    // Corresponds to:
+                    // iOS: didEnterBackground
+
+                    // We don't do anything here
+                    return 0;
+                }
+                case SDL_APP_WILLENTERFOREGROUND: {
+                    // Corresponds to:
+                    // iOS: willEnterForeground
+
+                    // We don't do anything here
+                    return 0;
+                }
+                case SDL_APP_DIDENTERFOREGROUND: {
+                    // Corresponds to:
+                    // iOS: didBecomeActive
+                    // Android: onResume
+                    return 1;
+                }
+                default: {
+                    // No special processing, add it to the event queue
+                    return 1;
+                }
+            }
+        }
 
         // ============================================================= //
         // ============================================================= //

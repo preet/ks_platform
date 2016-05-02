@@ -215,12 +215,16 @@ namespace ks
 
         TouchEvent ConvertSDLTouchFingerEvent(
                 SDL_TouchFingerEvent const &sdl_event,
-                TimePoint const &timepoint,
+                Uint32 sdl_ev_proc_time,
+                TimePoint const &ks_ev_proc_time,
                 float active_win_width,
                 float active_win_height)
         {
             TouchEvent ks_event;
-            ks_event.timestamp = timepoint;
+            ks_event.timestamp =
+                    ks_ev_proc_time-
+                    Milliseconds(sdl_ev_proc_time-
+                                 sdl_event.timestamp);
 
             // Action
             if(sdl_event.type == SDL_FINGERMOTION)
@@ -245,10 +249,14 @@ namespace ks
 
         MouseEvent ConverSDLMouseButtonEvent(
                 SDL_MouseButtonEvent const &sdl_event,
-                TimePoint const &timepoint)
+                Uint32 sdl_ev_proc_time,
+                TimePoint const &ks_ev_proc_time)
         {
             MouseEvent ks_event;
-            ks_event.timestamp = timepoint;
+            ks_event.timestamp =
+                    ks_ev_proc_time-
+                    Milliseconds(sdl_event.timestamp-
+                                 sdl_ev_proc_time);
 
             // Action
             ks_event.action =
@@ -279,10 +287,14 @@ namespace ks
 
         MouseEvent ConvertSDLMouseMotionEvent(
                 SDL_MouseMotionEvent const &sdl_event,
-                TimePoint const &timepoint)
+                Uint32 sdl_ev_proc_time,
+                TimePoint const &ks_ev_proc_time)
         {
             MouseEvent ks_event;
-            ks_event.timestamp = timepoint;
+            ks_event.timestamp =
+                    ks_ev_proc_time-
+                    Milliseconds(sdl_ev_proc_time-
+                                 sdl_event.timestamp);
 
             // Action
             ks_event.action = MouseEvent::Action::None;
